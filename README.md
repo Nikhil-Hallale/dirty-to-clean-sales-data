@@ -1,7 +1,7 @@
 # 📊 Project: Dirty-to-Clean Sales Data Pipeline
 
 ## 📌 Project Overview
-Data is almost never clean in the real world. In this project, I took a notoriously messy dataset containing over 10,000 rows of unformatted e-commerce sales records and built an end-to-end pipeline to scrub, restructure, and validate it. 
+Data is almost never clean in the real world. In this project, taking a messy, real-world dataset containing over 100 simulated e-commerce transaction logs of unformatted e-commerce sales records and built an end-to-end pipeline to scrub, restructure, and validate it. 
 
 By applying rigorous data-cleaning workflows, I transformed a corrupted spreadsheet into a reliable, relational database ready for business intelligence (BI) modeling and analytics.
 
