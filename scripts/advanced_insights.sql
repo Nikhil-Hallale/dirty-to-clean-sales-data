@@ -1,6 +1,5 @@
 -- ====================================================================
 -- PROJECT: SALES DATA ADVANCED BUSINESS INTELLIGENCE (BI)
--- Phase 5: Deep-Dive Analytics & Cross-Column Pattern Extraction
 -- OBJECTIVE: Evaluate structural financial risk, product elasticity, 
 --            wallet share dynamics, and data pipeline value metrics.
 -- ====================================================================
@@ -125,3 +124,45 @@ FROM sales100_clean
 WHERE status NOT IN ('RETURN', 'DATA_ERROR', 'INVALID_DATE')
 GROUP BY product
 ORDER BY total_value DESC;
+
+
+--=====================================================================
+--Purpose: Determines whether a product category is highly efficient. 
+--          It compares its share of total units sold vs. its share of 
+--          total net revenue.
+-- ====================================================================
+WITH TotalMetrics AS (
+    SELECT 
+        SUM(quantity) AS global_qty,
+        SUM(total) AS global_rev
+    FROM sales100_clean
+    WHERE status NOT IN ('RETURN', 'DATA_ERROR', 'INVALID_DATE')
+)
+SELECT 
+    category,
+    SUM(quantity) AS units_sold,
+    ROUND((SUM(quantity) * 100.0) / (SELECT global_qty FROM TotalMetrics), 2) AS unit_volume_share_pct,
+    ROUND(SUM(total), 2) AS net_revenue_generated,
+    ROUND((SUM(total) * 100.0) / (SELECT global_rev FROM TotalMetrics), 2) AS revenue_share_pct,
+FROM sales100_clean
+WHERE status NOT IN ('RETURN', 'DATA_ERROR', 'INVALID_DATE')
+GROUP BY category;
+
+
+-- ====================================================================
+-- KPI 5D. Gateway Revenue Integrity Index (Refund Drag Coefficient)
+-- Purpose: Analyzes how much of the capital entering each payment gateway 
+--          is dragged back out by returns, helping the finance team negotiate 
+--          better processing fee rates.
+-- ====================================================================
+SELECT 
+    payment_method,
+    ROUND(SUM(CASE WHEN status != 'RETURN' THEN total ELSE 0 END), 2) AS raw_cash_processed,
+    ROUND(ABS(SUM(CASE WHEN status = 'RETURN' THEN total ELSE 0 END)), 2) AS refund_outflow,
+    ROUND(
+        ABS(SUM(CASE WHEN status = 'RETURN' THEN total ELSE 0 END)) / 
+        NULLIF(SUM(CASE WHEN status != 'RETURN' THEN total ELSE 0 END), 0), 4
+    ) AS gateway_refund_drag_ratio
+FROM sales100_clean
+GROUP BY payment_method
+ORDER BY gateway_refund_drag_ratio DESC;
