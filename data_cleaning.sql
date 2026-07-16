@@ -1,11 +1,19 @@
 -- ====================================================================
+-- PROJECT: DIRTY-TO-CLEAN SALES DATA PIPELINE
+-- Phase 3: Data Cleaning, Validation & Transformation Operations
+-- OBJECTIVE: Enforce strict schemas, eliminate duplicate IDs, 
+--            standardize strings, repair timelines, and ensure math logic.
+-- ====================================================================
+
+-- ====================================================================
 -- STEP 1: Define Clean Destination Schema
 -- Objective: Enforce appropriate strict structural data types for 
 --            all transactional features.
 -- ====================================================================
+DROP TABLE IF EXISTS sales100_clean;
 
 CREATE TABLE sales100_clean (
-    id INTEGER PRIMARY KEY,          -- Strict numeric primary key
+    id INTEGER PRIMARY KEY,          -- Strict numeric primary key (blocks future duplicates)
     customer_name TEXT,
     order_id TEXT,                   -- Keeps text format for mixed string IDs
     order_date DATE,                 -- Enforces standard temporal structure
@@ -23,7 +31,6 @@ CREATE TABLE sales100_clean (
 -- Objective: Migrate rows from dirty sales100 to sales100_clean,
 --            deduplicating IDs, fixing dates, and standardizing text.
 -- ====================================================================
-
 INSERT INTO sales100_clean (
     id, customer_name, order_id, order_date, product, 
     category, quantity, price, payment_method, status, total
@@ -63,98 +70,83 @@ FROM (
 WHERE rn = 1; -- Enforces that only the first unique instance of any ID is migrated!
 
 -- ====================================================================
--- STEP 3: Verification Check Queries
+-- STEP 3: Verification Check Queries (Initial Migration)
 -- Objective: Sanity check the final destination migration results.
+--            (Keep these commented out in production files)
 -- ====================================================================
-
--- Check overall records successfully migrated
- SELECT COUNT(*)
- FROM sales100_clean;
-
--- Validate targeted deduplication of IDs 142, 146, and 175
-SELECT id, COUNT(*) 
-FROM sales100_clean 
-WHERE id IN (142, 146, 175) GROUP BY id;
+-- SELECT COUNT(*) FROM sales100_clean;
+-- SELECT id, COUNT(*) FROM sales100_clean WHERE id IN (142, 146, 175) GROUP BY id;
 
 -- ====================================================================
--- STEP 4: Financial Logic Corrections & Outlier Handling
--- Objective: Repair cross-column math discrepancies where quantity and 
---            price are valid, but the total is broken or negative.
+-- STEP 4: Negative Metric Alignment & Financial Outlier Handling
+-- Objective: Standardize negative quantities/totals as RETURNS, flip 
+--            negative unit prices, and flag uncorrectable records.
 -- ====================================================================
 
--- 1. Recalculate broken totals using valid quantity and price metrics
+-- 1. If unit price is negative, it's a system typo. Flip it to positive absolute values.
 UPDATE sales100_clean
-SET total = quantity * price
-WHERE quantity > 0 
-  AND price > 0 
-  AND ABS(total - (quantity * price)) > 0.01;
+SET price = ABS(price)
+WHERE price < 0;
 
--- 2. Target check: Nullify or flags records with zero/negative items 
---    that cannot be mathematically corrected without external context.
+-- 2. If quantity is negative, logically classify the transaction status as a return.
+--    Ensure the math balances: (Negative Quantity * Positive Price) = Negative Total
+UPDATE sales100_clean
+SET total = quantity * price,
+    status = 'RETURN'
+WHERE quantity < 0;
+
+-- 3. Target check: Flag records with explicit zero elements that break business metrics
 UPDATE sales100_clean
 SET status = 'DATA_ERROR'
-WHERE quantity <= 0 
-   OR price <= 0;
+WHERE quantity = 0 OR price = 0;
 
 -- ====================================================================
--- STEP 5: Categorical Typo Realignment
--- Objective: Map residual typos or variants to unified naming standards.
+-- STEP 5: Financial Logic & Cross-Column Validation
+-- Objective: Repair cross-column math discrepancies where metrics are valid,
+--            but the database total is broken, drifting, or missing.
 -- ====================================================================
 
--- Example path for category structural alignment (adjust based on your actual data typos)
-UPDATE sales100_clean
-SET category = 'ELECTRONICS'
-WHERE category IN ('ELECTRONICS', 'ELECTRONIC' , 'ELEC', 'Electronics', 'Electronic', 'electronics', 'electronic' );
-
--- ====================================================================
--- STEP 4: Targeted NULL Value Resolution
--- Objective: Repair missing totals using calculation logic and handle
---            corrupt or unparseable dates.
--- ====================================================================
-
--- 1. Mathematically calculate any total that is currently NULL
+-- 1. Mathematically calculate any total that migrated as a structural NULL
 UPDATE sales100_clean
 SET total = quantity * price
 WHERE total IS NULL 
   AND quantity IS NOT NULL 
   AND price IS NOT NULL;
 
--- 2. Flag records with unrepairable NULL dates and apply a placeholder
+-- 2. Recalculate broken totals for positive sales if they drift from expected value
 UPDATE sales100_clean
-SET order_date = '1970-01-01',
-    status = 'INVALID_DATE'
-WHERE order_date IS NULL;
+SET total = quantity * price
+WHERE quantity > 0 
+  AND price > 0 
+  AND ABS(total - (quantity * price)) > 0.01;
 
-
--- ====================================================================
--- STEP 5: Negative Metric Alignment & Financial Flagging
--- Objective: Standardize negative quantities/totals as REFUNDS and 
---            ensure the absolute math remains clean.
--- ====================================================================
-
--- 1. If price is negative, it's almost always a system error. Flip it to positive.
-UPDATE sales100_clean
-SET price = ABS(price)
-WHERE price < 0;
-
--- 2. If quantity is negative, treat it as a return. 
---    Ensure the total matches: (Negative Quantity * Positive Price) = Negative Total
-UPDATE sales100_clean
-SET total = quantity * price,
-    status = 'RETURN'
-WHERE quantity < 0;
-
--- 3. Catch-all: If total is still negative but quantity is positive, recalculate it properly
+-- 3. Catch-all: If total is still negative but quantity is positive, force recalculation
 UPDATE sales100_clean
 SET total = quantity * price
 WHERE total < 0 AND quantity > 0;
 
 -- ====================================================================
--- STEP 6: Conditional Category Imputation
--- Objective: Resolve blank spaces (' ') and NULLs in categories by
---            mapping them directly to their corresponding products.
+-- STEP 6: Targeted Temporal NULL Value Resolution
+-- Objective: Flag records with unrepairable NULL dates and apply a standard
+--            ISO placeholder to preserve database calculation chains.
+-- ====================================================================
+UPDATE sales100_clean
+SET order_date = '1970-01-01',
+    status = 'INVALID_DATE'
+WHERE order_date IS NULL;
+
+-- ====================================================================
+-- STEP 7: Categorical Typo Realignment & Imputation
+-- Objective: Resolve blank spaces (' '), literal 'NAN' text errors, and
+--            standardize existing categorical variations based on product maps.
 -- ====================================================================
 
+-- 1. Clean up known trailing text variations to unified standards
+UPDATE sales100_clean
+SET category = 'ELECTRONICS'
+WHERE category IN ('ELECTRONIC', 'ELEC', 'Electronics', 'Electronic', 'electronics', 'electronic');
+
+-- 2. Conditional Imputation: Map completely empty or missing categories to their true context
 UPDATE sales100_clean
 SET category = CASE product
     WHEN 'HEADPHONE'  THEN 'ELECTRONICS'
@@ -163,20 +155,15 @@ SET category = CASE product
     WHEN 'BASKETBALL' THEN 'SPORTS'
     WHEN 'JEANS'      THEN 'CLOTHING'
     WHEN 'SHOES'      THEN 'CLOTHING'
-    ELSE category -- Keep the original value if it doesn't match our target list
+    ELSE category 
 END
 WHERE TRIM(category) = '' OR category IS NULL;
 
--- ====================================================================
--- STEP 7: Resolution of 'NAN' Values in Categorical Features
--- Objective: Map residual text 'NAN' strings to their true categories
---            based on distinct structural product mappings.
--- ====================================================================
-
+-- 3. The 'NAN' Trapping Safehouse: Catch Python-exported text artifacts and map spelling typos
 UPDATE sales100_clean
-SET category = CASE product
-    WHEN 'BIOGRAPHY'  THEN 'BOOKS'
-    WHEN 'SMARTPHONE' THEN 'ELECTRONICS'
+SET category = CASE 
+    WHEN TRIM(product) IN ('BIOGRAPHY', 'BIOGHRAPHY') THEN 'BOOKS'
+    WHEN TRIM(product) = 'SMARTPHONE'                 THEN 'ELECTRONICS'
     ELSE category 
 END
 WHERE UPPER(TRIM(category)) = 'NAN';
