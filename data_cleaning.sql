@@ -95,3 +95,88 @@ UPDATE sales100_clean
 SET status = 'DATA_ERROR'
 WHERE quantity <= 0 
    OR price <= 0;
+
+-- ====================================================================
+-- STEP 5: Categorical Typo Realignment
+-- Objective: Map residual typos or variants to unified naming standards.
+-- ====================================================================
+
+-- Example path for category structural alignment (adjust based on your actual data typos)
+UPDATE sales100_clean
+SET category = 'ELECTRONICS'
+WHERE category IN ('ELECTRONICS', 'ELECTRONIC' , 'ELEC', 'Electronics', 'Electronic', 'electronics', 'electronic' );
+
+-- ====================================================================
+-- STEP 4: Targeted NULL Value Resolution
+-- Objective: Repair missing totals using calculation logic and handle
+--            corrupt or unparseable dates.
+-- ====================================================================
+
+-- 1. Mathematically calculate any total that is currently NULL
+UPDATE sales100_clean
+SET total = quantity * price
+WHERE total IS NULL 
+  AND quantity IS NOT NULL 
+  AND price IS NOT NULL;
+
+-- 2. Flag records with unrepairable NULL dates and apply a placeholder
+UPDATE sales100_clean
+SET order_date = '1970-01-01',
+    status = 'INVALID_DATE'
+WHERE order_date IS NULL;
+
+
+-- ====================================================================
+-- STEP 5: Negative Metric Alignment & Financial Flagging
+-- Objective: Standardize negative quantities/totals as REFUNDS and 
+--            ensure the absolute math remains clean.
+-- ====================================================================
+
+-- 1. If price is negative, it's almost always a system error. Flip it to positive.
+UPDATE sales100_clean
+SET price = ABS(price)
+WHERE price < 0;
+
+-- 2. If quantity is negative, treat it as a return. 
+--    Ensure the total matches: (Negative Quantity * Positive Price) = Negative Total
+UPDATE sales100_clean
+SET total = quantity * price,
+    status = 'RETURN'
+WHERE quantity < 0;
+
+-- 3. Catch-all: If total is still negative but quantity is positive, recalculate it properly
+UPDATE sales100_clean
+SET total = quantity * price
+WHERE total < 0 AND quantity > 0;
+
+-- ====================================================================
+-- STEP 6: Conditional Category Imputation
+-- Objective: Resolve blank spaces (' ') and NULLs in categories by
+--            mapping them directly to their corresponding products.
+-- ====================================================================
+
+UPDATE sales100_clean
+SET category = CASE product
+    WHEN 'HEADPHONE'  THEN 'ELECTRONICS'
+    WHEN 'LAPTOP'     THEN 'ELECTRONICS'
+    WHEN 'VACCUM'     THEN 'HOME APPLIANCES'
+    WHEN 'BASKETBALL' THEN 'SPORTS'
+    WHEN 'JEANS'      THEN 'CLOTHING'
+    WHEN 'SHOES'      THEN 'CLOTHING'
+    ELSE category -- Keep the original value if it doesn't match our target list
+END
+WHERE TRIM(category) = '' OR category IS NULL;
+
+-- ====================================================================
+-- STEP 7: Resolution of 'NAN' Values in Categorical Features
+-- Objective: Map residual text 'NAN' strings to their true categories
+--            based on distinct structural product mappings.
+-- ====================================================================
+
+UPDATE sales100_clean
+SET category = CASE product
+    WHEN 'BIOGRAPHY'  THEN 'BOOKS'
+    WHEN 'SMARTPHONE' THEN 'ELECTRONICS'
+    ELSE category 
+END
+WHERE UPPER(TRIM(category)) = 'NAN';
