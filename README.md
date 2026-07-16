@@ -26,7 +26,7 @@
 
 #### ⚡ The Electronics Refund Crisis
 
-* **The Reveal:** While the Electronics category looks healthy on paper, it experiences catastrophic revenue leakage. Nearly **94%** of every dollar generated in this category is bled back to customers in returns. The primary driver is the **Blender** line, which registers a critical **100% return rate** across its transactions.
+* **The Reveal:** While the Electronics category looks healthy on paper, it experiences catastrophic revenue leakage. Nearly **94%** of every dollar generated in this category is bled back to customers in returns. The primary driver is the **Blender** line, which registers a critical **100% return rate** across its transactions. (It might be beacuse only one product that is Blender was sold which eventualy returned back)
 * **The Solution & Recommendation:** **Immediate Operational Pause.** I recommend freezing online purchasing for the Blender line immediately. We need to run an urgent warehouse quality-assurance check to determine if shipments are being damaged in transit, or audit the product's online description page to correct inaccurate customer expectations.
 
 #### 📦 The Cash on Delivery (COD) Capital Drag
