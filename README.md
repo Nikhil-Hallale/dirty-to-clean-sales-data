@@ -1,32 +1,52 @@
-# 📊 Project: Dirty-to-Clean Sales Data Pipeline
+# 🔷 Project: Dirty-to-Clean Sales Data Pipeline
 
-## 📌 Project Overview
-Data is almost never clean in the real world. In this project, taking a messy, real-world dataset containing over 100 simulated e-commerce transaction logs of unformatted e-commerce sales records and built an end-to-end pipeline to scrub, restructure, and validate it. 
+An end-to-end data engineering and business intelligence project. This pipeline takes highly volatile, "dirty" retail transaction logs, sanitizes them using programmatic SQL transformation scripts, and extracts high-value business insights to support executive decision-making.
 
-By applying rigorous data-cleaning workflows, I transformed a corrupted spreadsheet into a reliable, relational database ready for business intelligence (BI) modeling and analytics.
+---
 
-## 🛠️ Tech Stack & Tools Used
-* **SQL (MySQL):** Used for heavy-lifting data aggregation, identifying structural duplicates, and filtering text patterns.
-* **GitHub Desktop:** For version control and maintaining clean, documented project snapshots.
+## ⚡ Executive Insights & Key Findings (At a Glance)
 
-## 📐 Data Pipeline Architecture
-The workflow chart below illustrates how data flows from its initial unorganized state, through validation check-points, and finally into production-ready storage:
+> ### 💵 1. Core Financial Performance
+> * **Gross Revenue Capacity:** **`$133,048.39`** (Top-line sales potential)
+> * **Total Refund Outflow:** **`$22,957.65`** (Capital returned to customers)
+> * **Realized Net Revenue:** **`$110,090.74`** (True, actual retained profit)
+> * **Average Order Value (AOV):** **`$1,590.78`** per successful transaction
+> * **Total Units Sold:** **`286` units** successfully moved
+> * **Overall Return Rate:** Exceptionally healthy baseline at **`2.00%`**
 
-## 🚨 The Problems Identified (and How I Fixed Them)
-Through initial data profiling, I identified four critical bottlenecks that would break any analytics dashboard:
+> ### 🔍 2. Category & Portfolio Analysis
+> * **The Electronics Return Bleed:** While global return rates are low, **`ELECTRONICS`** is a high-risk area. It generated **`$21,243.44`** in gross revenue but suffered **`$20,000.00`** in returns—meaning **94.15%** of its sales value was returned!
+> * **High-Return Inventory Items:** **`BLENDER` (Electronics)** recorded a **`100.00%`** return rate, and **`T-SHIRT` (Clothing)** recorded a **`50.00%`** return rate on low initial volumes.
+> * **Profit Dominance Index:** The business relies heavily on **`BOOKS`**, which single-handedly drives **`36.40%` ($40,073.31)** of all net revenue.
 
-### 1. The Duplicate Row Dilemma
-* **The Mess:** The same transaction IDs appeared multiple times due to a software logging bug, artificially inflating revenue data.
-* **The Fix:** Used SQL self-joins and window functions to isolate unique purchase events and drop ghost duplicates.
+> ### 💳 3. Payment Methods & Customer Behavior
+> * **High-Value Channel:** Customers paying via **`BANK TRANSFER`** spend the most per transaction with an AOV of **`$2,099.74`**.
+> * **Return Correlation:** Orders processed via **`PAYPAL`** have the highest return probability (**`4.17%`**).
 
-### 2. Corrupted Text Formatting
-* **The Mess:** Customer text entries had broken string spacing and inconsistent casing (e.g., `  jOe smITh  `, `JOE SMITH`).
-* **The Fix:** Applied dynamic string manipulation (`TRIM`, `LOWER`, and uppercase capitalization functions) to perfectly standardize thousands of customer profiles.
+> ### 🛠️ 4. Data Engineering ROI ("Ghost Revenue")
+> * **`$51,918.70` Rescued!** By successfully parsing chaotic, non-standard date formats (initially flagged as `INVALID_DATE`) rather than dropping the rows, this pipeline saved and restored over **$51k** in transactional reporting data for the business.
+> * **Raw Data Ingestion Error Rate:** **`47.00%`** of incoming raw records contained duplicates, corrupt formats, or NULL values that this pipeline cleaned.
 
-### 3. Invalid Contact Formatting (Regex Challenge)
-* **The Mess:** The database accepted invalid e-mail address inputs that did not match structural criteria (e.g., missing domains, uppercase `.COM` suffixes, symbols in usernames).
-* **The Fix:** Implemented rigid Regular Expression (`REGEXP BINARY`) patterns to flag and isolate faulty records.
+---
 
-### 4. Missing Numerical Records
-* **The Mess:** Crucial numeric entries like sales figures and product keys were empty or null.
-* **The Fix:** Programmed fallback constraints using conditional logic to impute missing numbers without skewing data distributions.
+## 💻 Tech Stack & Architecture
+* **Database Engine:** SQLite / PostgreSQL
+* **Data Transformation:** SQL (Window Functions, Conditional Aggregations, CTEs)
+* **Reporting:** Markdown / Git Version Control
+
+---
+
+## 📁 Repository Structure
+
+Your project files are organized cleanly following industry best practices:
+
+```text
+├── data/
+│   ├── messy_ecommerce_sales_data.csv  # Raw, volatile transaction logs
+│   └── sales100_clean.csv              # Sanitized, analytical-ready database table
+├── scripts/
+│   ├── data_profiling.sql              # Initial data assessment and sanity checks
+│   ├── data_cleaning.sql               # Core ETL cleaning script (deduplication, casting)
+│   ├── eda_queries.sql                 # Baseline Business KPIs
+│   └── advanced_insights.sql           # Complex analytics and risk profiling
+└── README.md                           # Project documentation & insights
