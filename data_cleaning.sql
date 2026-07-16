@@ -1,8 +1,5 @@
 -- ====================================================================
 -- PROJECT: DIRTY-TO-CLEAN SALES DATA PIPELINE
--- Phase 3: Data Cleaning, Validation & Transformation Operations
--- OBJECTIVE: Enforce strict schemas, eliminate duplicate IDs, 
---            standardize strings, repair timelines, and ensure math logic.
 -- ====================================================================
 
 -- ====================================================================
@@ -27,9 +24,9 @@ CREATE TABLE sales100_clean (
 );
 
 -- ====================================================================
--- STEP 2: The Master Data Migration & Transformation
--- Objective: Migrate rows from dirty sales100 to sales100_clean,
---            deduplicating IDs, fixing dates, and standardizing text.
+-- STEP 2: The Master Data Migration, Ingestion & Mixed Date Parsing
+-- Objective: Migrate rows from raw table while simultaneously deduplicating IDs,
+--            standardizing text cases, and resolving dynamic date patterns.
 -- ====================================================================
 INSERT INTO sales100_clean (
     id, customer_name, order_id, order_date, product, 
@@ -40,14 +37,23 @@ SELECT
     TRIM(customer_name),
     TRIM(order_id),
     
-    -- Fix Date Formats: Standardize everything to YYYY-MM-DD
+    -- AIRTIGHT MIXED DATE PARSER: Resolves YYYY-MM-DD, MM/DD/YYYY, and single-digit variations
     CASE 
-        -- If it's already in YYYY-MM-DD, just pass it through
-        WHEN order_date LIKE '____-__-__' THEN order_date
-        -- If it's in MM/DD/YYYY format, restructure it into YYYY-MM-DD
-        WHEN order_date LIKE '__/__/____' THEN 
-             SUBSTR(order_date, 7, 4) || '-' || SUBSTR(order_date, 1, 2) || '-' || SUBSTR(order_date, 4, 2)
-        ELSE NULL -- Set corrupt/unparseable text as NULL to fix later
+        -- Ignore text artifacts completely ('abc')
+        WHEN order_date = 'abc' THEN NULL
+
+        -- Format A: Year is at the front (e.g., 2025/07/24 or 2025-7-24)
+        WHEN REPLACE(order_date, '/', '-') LIKE '____-%' 
+            THEN DATE(REPLACE(order_date, '/', '-'))
+            
+        -- Format B: Month/Day is at the front, ending in a 4-digit Year (e.g., 7/24/2025 or 07-24-2025)
+        WHEN REPLACE(order_date, '/', '-') LIKE '%-____' 
+            THEN DATE(
+                SUBSTR(REPLACE(order_date, '/', '-'), -4) || '-' || -- Year
+                PRINTF('%02d', CAST(REPLACE(order_date, '/', '-') AS INT)) || '-' || -- Month
+                PRINTF('%02d', CAST(SUBSTR(REPLACE(order_date, '/', '-'), INSTR(REPLACE(order_date, '/', '-'), '-') + 1) AS INT)) -- Day
+            )
+        ELSE NULL 
     END AS order_date,
     
     -- Standardize text columns to uppercase to fix capitalization inconsistencies
@@ -62,23 +68,15 @@ SELECT
     UPPER(TRIM(status)),
     CAST(total AS DECIMAL(10, 2))
 FROM (
-    -- Subquery assigns a row rank to catch duplicates
+    -- Subquery assigns a row rank to drop structural duplicates
     SELECT *,
            ROW_NUMBER() OVER (PARTITION BY CAST(id AS INT) ORDER BY id) as rn
     FROM sales100
 ) 
-WHERE rn = 1; -- Enforces that only the first unique instance of any ID is migrated!
+WHERE rn = 1;
 
 -- ====================================================================
--- STEP 3: Verification Check Queries (Initial Migration)
--- Objective: Sanity check the final destination migration results.
---            (Keep these commented out in production files)
--- ====================================================================
--- SELECT COUNT(*) FROM sales100_clean;
--- SELECT id, COUNT(*) FROM sales100_clean WHERE id IN (142, 146, 175) GROUP BY id;
-
--- ====================================================================
--- STEP 4: Negative Metric Alignment & Financial Outlier Handling
+-- STEP 3: Negative Metric Alignment & Financial Outlier Handling
 -- Objective: Standardize negative quantities/totals as RETURNS, flip 
 --            negative unit prices, and flag uncorrectable records.
 -- ====================================================================
@@ -101,7 +99,7 @@ SET status = 'DATA_ERROR'
 WHERE quantity = 0 OR price = 0;
 
 -- ====================================================================
--- STEP 5: Financial Logic & Cross-Column Validation
+-- STEP 4: Financial Logic & Cross-Column Validation
 -- Objective: Repair cross-column math discrepancies where metrics are valid,
 --            but the database total is broken, drifting, or missing.
 -- ====================================================================
@@ -126,9 +124,9 @@ SET total = quantity * price
 WHERE total < 0 AND quantity > 0;
 
 -- ====================================================================
--- STEP 6: Targeted Temporal NULL Value Resolution
--- Objective: Flag records with unrepairable NULL dates and apply a standard
---            ISO placeholder to preserve database calculation chains.
+-- STEP 5: Temporal Boundary & Error Isolation
+-- Objective: Flag records with unrepairable text dates ('abc') with a standard
+--            ISO placeholder to preserve database execution chains.
 -- ====================================================================
 UPDATE sales100_clean
 SET order_date = '1970-01-01',
@@ -136,7 +134,7 @@ SET order_date = '1970-01-01',
 WHERE order_date IS NULL;
 
 -- ====================================================================
--- STEP 7: Categorical Typo Realignment & Imputation
+-- STEP 6: Categorical Typo Realignment & Imputation
 -- Objective: Resolve blank spaces (' '), literal 'NAN' text errors, and
 --            standardize existing categorical variations based on product maps.
 -- ====================================================================
