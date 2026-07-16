@@ -159,7 +159,7 @@ WHERE next_id IS NOT NULL
   AND next_id - current_id > 1;
 
 -- ====================================================================
--- STEP 10: Multi-Item Order Consistency Check (The Ultimate Audit)
+-- STEP 9: Multi-Item Order Consistency Check (The Ultimate Audit)
 -- Objective: Ensure that a single order_id never maps to multiple 
 --            customers, dates, payment methods, or order statuses.
 -- ====================================================================
