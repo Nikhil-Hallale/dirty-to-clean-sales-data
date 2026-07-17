@@ -68,6 +68,13 @@ FROM (
 )
 WHERE rn = 1;
 
+-- to handle null values in the quantity, price and total part
+UPDATE sales100_clean
+SET quantity = COALESCE(quantity, 0),
+    price = COALESCE(price, 0.0),
+    total = COALESCE(total, 0.0)
+WHERE quantity IS NULL OR price IS NULL OR total IS NULL;
+
 --  Negative-value handling
 UPDATE sales100_clean
 SET price = ABS(price)
